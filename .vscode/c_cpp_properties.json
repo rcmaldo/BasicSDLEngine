@@ -1,0 +1,30 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/SDL2-2.0.12/x86_64-w64-mingw32/include/SDL2",
+                "${workspaceFolder}/SDL2_image-2.0.5/x86_64-w64-mingw32/include/SDL2",
+                "${workspaceFolder}/headers",
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "C:\\msys64\\mingw64\\bin\\g++.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}/SDL2-2.0.12/x86_64-w64-mingw32/include/SDL2",
+                    "${workspaceFolder}/SDL2_image-2.0.5/x86_64-w64-mingw32/include/SDL2",
+                    "${workspaceFolder}/headers",
+                    "${workspaceFolder}/**"
+                ]
+            }
+        }
+    ],
+    "version": 4
+}
