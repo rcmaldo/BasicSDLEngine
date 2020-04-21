@@ -8,9 +8,17 @@ bool Init::initializeSDL(int width, int height, int fps, std::vector<int>& event
     sInstance.height = height;
     sInstance.fps = fps;
     sInstance.delta = 1.0f / fps;
+
+    /* Initialize SDL */
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         sInstance.log << "SDL2 initialization failed!\nSDL_Error:" << SDL_GetError() << "\n";
         return false;
+    }
+
+    /* Set texture filtering to linear */
+    if( !SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "1" ) )
+    {
+        sInstance.log << "Warning: Linear texture filtering not enabled!\n";
     }
 
     /* Initialize main window */
@@ -20,15 +28,24 @@ bool Init::initializeSDL(int width, int height, int fps, std::vector<int>& event
         return false;
     }
 
+    /* Initialize renderer */
+    sInstance.renderer = SDL_CreateRenderer(sInstance.window, -1, SDL_RENDERER_ACCELERATED);
+    if( sInstance.renderer == NULL )
+    {
+        sInstance.log << "Renderer could not be created! SDL Error: " << SDL_GetError() << "\n";
+        return false;
+    }
+
+    /* Initialize renderer color */
+    SDL_SetRenderDrawBlendMode(sInstance.renderer, SDL_BLENDMODE_BLEND);
+	SDL_SetRenderDrawColor(sInstance.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+
     /* Initialize PNG system from SDL_image */
     int imgFlags = IMG_INIT_PNG;
     if (!( IMG_Init( imgFlags ) & imgFlags )) {
         sInstance.log << "SDL_image failed to initialize!\nSDL_image Error: " << IMG_GetError() << "\n";
         return false;
     }
-    
-    /* Get window surface */
-    sInstance.screenSurface = SDL_GetWindowSurface(sInstance.window);
 
     /* Set the events for later handling */
     for (int e : eventList) {
@@ -41,44 +58,41 @@ bool Init::initializeSDL(int width, int height, int fps, std::vector<int>& event
 void Init::close()
 {
     /* Destroy resources */
+    SDL_DestroyRenderer(sInstance.renderer);
     SDL_DestroyWindow(sInstance.window);
     sInstance.window = NULL;
-    SDL_FreeSurface(sInstance.screenSurface);
-    sInstance.screenSurface = NULL;
+    sInstance.renderer = NULL;
 
     /* Quit SDL subsystems */
 	IMG_Quit();
     SDL_Quit();
 }
 
-SDL_Surface* Init::loadSurface(std::string path)
+SDL_Texture* Init::loadTexture(std::string path)
 {
-    /* Final output */
-    SDL_Surface* retSurface = NULL;
+    SDL_Texture* retTexture = NULL;
 
-    /* Load image normally */
-    SDL_Surface* tmpSurface = IMG_Load(path.c_str());
-    if (tmpSurface == NULL) {
-        auto err = IMG_GetError();
-        printf("IMG_Load failed on %s!\nSDL_image Error: %s\n", path.c_str(), err);
-    } else {
-        /* Convert image to global surface's format */
-        retSurface = SDL_ConvertSurface(tmpSurface, getScreenSurface()->format, 0);
-        if (retSurface == NULL) {
-            printf("SDL_ConvertSurface failed on %s!\nSDL Error: %s\n", path.c_str(), SDL_GetError());
-        }
+    SDL_Surface* loadedSurface = IMG_Load(path.c_str());
+    if (loadedSurface == NULL) {
+        sInstance.log << "Unable to load image " << path.c_str() << "! SDL_image Error: " << IMG_GetError() << "\n";
+        return NULL;
     }
 
-    /* Dealloc normally loaded surface */
-    SDL_FreeSurface(tmpSurface);
+    SDL_SetColorKey(loadedSurface, SDL_TRUE, SDL_MapRGB(loadedSurface->format, 0, 0xFF, 0xFF) );
 
-    return retSurface;
+    retTexture = SDL_CreateTextureFromSurface(sInstance.renderer, loadedSurface);
+    if (retTexture == NULL) {
+        sInstance.log << "Unable to create image from " << path.c_str() << "! SDL_image Error: " << IMG_GetError() << "\n";
+    }
+    SDL_FreeSurface(loadedSurface);
+    
+    return retTexture;
 }
 
 /* Add entity object, make sure entity is rvalue to reduce resource usage */
-Entity& Init::addEntity(std::string id, Entity entity)
+Entity& Init::addEntity(std::string id, Entity&& entity)
 {
-    auto p = sInstance.entityList.emplace(id, entity);
+    auto p = sInstance.entityList.emplace(id, std::move(entity));
     return (p.first)->second;   // (p.first == the iterator to the pair added) -> Entity
 }
 
@@ -129,16 +143,20 @@ void Init::updateHandler()
     }
 }
 
-void Init::surfaceHandler()
+void Init::textureHandler()
 {
+    SDL_SetRenderDrawColor(sInstance.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    SDL_RenderClear(sInstance.renderer);
     for (auto &it : sInstance.entityList) {
         /* Apply image onto global surface */
         Entity& e = it.second;
-        SDL_BlitSurface(e.getSurface(), &(e.getLRect()), Init::getScreenSurface(), &(e.getGRect()));
+        SDL_Rect src = e.getLRect().getSDLRect();
+        SDL_Rect dst = e.getGRect().getSDLRect();
+        SDL_RenderCopy(sInstance.renderer, e.getTexture(), &src, &dst);
     }
-    
-    /* Update global surface */
-    SDL_UpdateWindowSurface(Init::getWindow());
+
+    /* Update global texture */
+    SDL_RenderPresent(sInstance.renderer);
 }
 
 void Init::destroyHandler()

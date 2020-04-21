@@ -3,26 +3,32 @@
 #include "..\headers\Init.h"
 
 /* Regular C-tor */
-Entity::Entity(std::string spritePath, int x, int y, int w, int h, float radius)
+Entity::Entity(std::string spritePath, int x, int y, int w, int h, double radius)
     : x(gRect.x), y(gRect.y), delta(Init::getDelta())
 {
     /* Load sprite or image */
-    surface = Init::loadSurface(spritePath);
+    texture = Init::loadTexture(spritePath);
+
+    int queryW;
+    int queryH;
+
+    SDL_QueryTexture(texture, NULL, NULL, &queryW, &queryH);
+
     lRect.x = 0;
     lRect.y = 0;
-    lRect.h = surface->h;
-    lRect.w = surface->w;
+    lRect.w = queryW;
+    lRect.h = queryH;
     
     /* Set dimensions */
     gRect.x = x;
     gRect.y = y;
     if (w < 0) {
-        gRect.w = surface->w;
+        gRect.w = queryW;
     } else {
         gRect.w = w;
     }
     if (h < 0) {
-        gRect.h = surface->h;
+        gRect.h = queryH;
     } else {
         gRect.h = h;
     }
@@ -35,22 +41,63 @@ Entity::Entity(std::string spritePath, int x, int y, int w, int h, float radius)
     }
 }
 
-/* Copy C-tor */
+/* Copy C-tor (DOES NOT WORK WITH TRANSPARENCY) */
+/* TODO: shared ptr for textures */
 Entity::Entity(const Entity& other)
     : x(gRect.x), y(gRect.y), delta(Init::getDelta()), radius(other.radius),
     gRect(other.gRect), lRect(other.lRect)
 {
-    this->surface = SDL_ConvertSurface(other.surface, other.surface->format, SDL_SWSURFACE);
+    /* Get width and height, then create blank texture */
+    int queryW;
+    int queryH;
+    SDL_Renderer* gRenderer = Init::getRenderer();
+    SDL_QueryTexture(other.texture, NULL, NULL, &queryW, &queryH);
+    this->texture = SDL_CreateTexture(gRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, queryW, queryH);
+    
+    /* Get previous render target */
+    SDL_Texture* prevTarget = SDL_GetRenderTarget(gRenderer);
+    
+    /* Set target to object's texture */
+    SDL_SetRenderTarget(gRenderer, this->texture);
+
+    SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0);
+    SDL_RenderFillRect(gRenderer, NULL);
+
+    /* Copy texture */
+    SDL_RenderCopy(gRenderer, other.texture, NULL, NULL);
+    
+    /* Set back render target */
+    SDL_SetRenderTarget(gRenderer, prevTarget);
 }
 
-/* Copy A-tor */
+/* Copy A-tor (DOES NOT WORK WITH TRANSPARENCY) */
 Entity& Entity::operator=(const Entity& other)
 {
     this->radius = other.radius;
     this->gRect = other.gRect;
     this->lRect = other.lRect;
+
+    /* Get width and height, then create blank texture */
+    int queryW;
+    int queryH;
+    SDL_Renderer* gRenderer = Init::getRenderer();
+    SDL_QueryTexture(other.texture, NULL, NULL, &queryW, &queryH);
+    this->texture = SDL_CreateTexture(gRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, queryW, queryH);
     
-    this->surface = SDL_ConvertSurface(other.surface, other.surface->format, SDL_SWSURFACE);
+    /* Get previous render target */
+    SDL_Texture* prevTarget = SDL_GetRenderTarget(gRenderer);
+    
+    /* Set target to object's texture */
+    SDL_SetRenderTarget(gRenderer, this->texture);
+
+    SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 0);
+    SDL_RenderFillRect(gRenderer, NULL);
+
+    /* Copy texture */
+    SDL_RenderCopy(gRenderer, other.texture, NULL, NULL);
+    
+    /* Set back render target */
+    SDL_SetRenderTarget(gRenderer, prevTarget);
 }
 
 /* Move C-tor */
@@ -58,8 +105,8 @@ Entity::Entity(Entity&& other)
     : x(gRect.x), y(gRect.y), delta(Init::getDelta()), radius(other.radius),
     gRect(other.gRect), lRect(other.lRect)
 {
-    this->surface = other.surface;
-    other.surface = NULL;
+    this->texture = other.texture;
+    other.texture = NULL;
 }
 
 /* Move A-tor */
@@ -69,11 +116,11 @@ Entity& Entity::operator=(Entity&& other)
     this->gRect = other.gRect;
     this->lRect = other.lRect;
 
-    this->surface = other.surface;
-    other.surface = NULL;
+    this->texture = other.texture;
+    other.texture = NULL;
 }
 
 Entity::~Entity()
 {
-    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
 }

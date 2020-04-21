@@ -25,37 +25,40 @@ public:
     /* Load surfaces that are uniform in format to screenSurface */
     static SDL_Surface* loadSurface(std::string path);
 
+    static SDL_Texture* loadTexture(std::string path);
+
     /* Handlers */
     static void eventHandler();
     static void updateHandler();
-    static void surfaceHandler();
+    static void textureHandler();
     static void destroyHandler();
 
     /* Getters */
     static int getWidth() { return sInstance.width; }
     static int getHeight() { return sInstance.height; }
     static int getFPS() { return sInstance.fps; }
-    static float& getDelta() { return sInstance.delta; }
+    static double& getDelta() { return sInstance.delta; }
     static SDL_Window* getWindow() { return sInstance.window; }
-    static SDL_Surface* getScreenSurface() { return sInstance.screenSurface; }
+    static SDL_Renderer* getRenderer() { return sInstance.renderer; }
     static std::string getLog() { return sInstance.log.str(); }
     static bool getEvent(int sdlEventName) { return sInstance.events[sdlEventName]; }
 
     /* Entity functions */
-    static Entity& addEntity(std::string id, Entity entity);  // Force rvalue reference
+    static Entity& addEntity(std::string id, Entity&& entity);  // Force rvalue reference
     static Entity* findEntity(std::string id);                // Return ptr
     static void destroyEntity(std::string id);                // Add entity to list to be destroyed
 
 private:
     static Init sInstance;
 
-    int width, height;          // Screen dimensions
-    std::stringstream log;      // Message/error logs
+    int width, height;              // Screen dimensions
+    std::stringstream log;          // Message/error logs
 
-    int fps;                    // Frames per second
-    float delta;                // := 1/fps
-    SDL_Window* window;         // Global window object
-    SDL_Surface* screenSurface; // Global main surface object
+    int fps;                        // Frames per second
+    double delta;                    // := 1/fps
+    SDL_Window* window = NULL;      // Global window object
+    SDL_Renderer* renderer = NULL;  // Global renderer
+    SDL_Texture* texture = NULL;    // Current displayed texture   
 
     std::map<std::string, Entity> entityList;   // (REMOVE FOR BOILERPLATE)
     std::queue<std::string> destroyQueue;       // List of entities to be destroyed
