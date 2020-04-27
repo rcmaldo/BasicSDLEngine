@@ -19,3 +19,4 @@ Extra days:
 (17/04/20)	Cleaned up classes and code efficiency
 (18/04/20)	Designed background tiles
 (19/04/20)	Designed placeholders for player, bullets, enemies; created local Git repo
+(20/04/20)	Added GPU accelerated rendering; started on simple FPS capping

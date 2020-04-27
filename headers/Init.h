@@ -13,10 +13,10 @@
 
 #include "..\headers\Entity.h"
  
-class Init {
+class Game {
 public:
     /* Disallow copy constructor */
-    Init(const Init&) = delete;
+    Game(const Game&) = delete;
 
     /* SDL initialization and cleanup calls */
     static bool initializeSDL(int width, int height, int fps, std::vector<int>& eventList);
@@ -27,7 +27,11 @@ public:
 
     static SDL_Texture* loadTexture(std::string path);
 
+    /* Tiles Entity's current texture to fill map (and +1 row) */
+    static void tileEntityTexture(Entity& e);
+
     /* Handlers */
+    static void entityListHandler();
     static void eventHandler();
     static void updateHandler();
     static void textureHandler();
@@ -44,12 +48,12 @@ public:
     static bool getEvent(int sdlEventName) { return sInstance.events[sdlEventName]; }
 
     /* Entity functions */
-    static Entity& addEntity(std::string id, Entity&& entity);  // Force rvalue reference
+    static Entity* addEntity(std::string id, Entity&& entity);  // Force rvalue reference
     static Entity* findEntity(std::string id);                // Return ptr
     static void destroyEntity(std::string id);                // Add entity to list to be destroyed
 
 private:
-    static Init sInstance;
+    static Game sInstance;
 
     int width, height;              // Screen dimensions
     std::stringstream log;          // Message/error logs
@@ -61,11 +65,12 @@ private:
     SDL_Texture* texture = NULL;    // Current displayed texture   
 
     std::map<std::string, Entity> entityList;   // (REMOVE FOR BOILERPLATE)
+    std::map<std::string, Entity> addEntityList;// Entities to be added at the end of the cycle
     std::queue<std::string> destroyQueue;       // List of entities to be destroyed
 
     std::unordered_map<int, bool> events;   // List of SDL_Events, true if active on current frame
                                             // Events are added in initialization
-    Init() {};
+    Game() {};
 };
 
 #endif

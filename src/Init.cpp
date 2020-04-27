@@ -1,8 +1,8 @@
 #include "..\headers\Init.h"
 
-Init Init::sInstance;
+Game Game::sInstance;
 
-bool Init::initializeSDL(int width, int height, int fps, std::vector<int>& eventList)
+bool Game::initializeSDL(int width, int height, int fps, std::vector<int>& eventList)
 {
     sInstance.width = width;
     sInstance.height = height;
@@ -55,7 +55,7 @@ bool Init::initializeSDL(int width, int height, int fps, std::vector<int>& event
     return true;
 }
 
-void Init::close()
+void Game::close()
 {
     /* Destroy resources */
     SDL_DestroyRenderer(sInstance.renderer);
@@ -68,7 +68,7 @@ void Init::close()
     SDL_Quit();
 }
 
-SDL_Texture* Init::loadTexture(std::string path)
+SDL_Texture* Game::loadTexture(std::string path)
 {
     SDL_Texture* retTexture = NULL;
 
@@ -89,15 +89,56 @@ SDL_Texture* Init::loadTexture(std::string path)
     return retTexture;
 }
 
+/* Tiles Entity's current texture to fill map (and +1 row) */
+void Game::tileEntityTexture(Entity& e) {
+    /* Get width and height, then create blank texture */
+    int tileWidth;
+    int tileHeight;
+    int resultWidth = getWidth();
+    int resultHeight = getHeight() + tileHeight;
+    SDL_Renderer* gRenderer = Game::getRenderer();
+    SDL_Texture* other = e.getTexture();
+    SDL_QueryTexture(e.getTexture(), NULL, NULL, &tileWidth, &tileHeight);
+    SDL_Texture* result = SDL_CreateTexture(gRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, resultWidth, resultHeight);
+    
+    /* Get previous render target */
+    SDL_Texture* prevTarget = SDL_GetRenderTarget(gRenderer);
+    
+    /* Set target to object's texture */
+    SDL_SetRenderTarget(gRenderer, result);
+
+    for (int y = 0; y < resultHeight; y += tileHeight) {
+        for (int x = 0; x < resultWidth; x += tileWidth) {
+            SDL_Rect dst = {x, y, tileWidth, tileHeight};
+            SDL_RenderCopy(gRenderer, other, NULL, &dst);
+        }
+    }
+
+    /* Set back render target */
+    SDL_SetRenderTarget(gRenderer, prevTarget);
+
+    /* Set the final resulting texture */
+    e.setTexture(result);
+
+    e.getGRect().w = resultWidth;
+    e.getGRect().h = resultHeight;
+    e.getLRect().w = resultWidth;
+    e.getLRect().h = resultHeight;
+}
+
 /* Add entity object, make sure entity is rvalue to reduce resource usage */
-Entity& Init::addEntity(std::string id, Entity&& entity)
+Entity* Game::addEntity(std::string id, Entity&& entity)
 {
-    auto p = sInstance.entityList.emplace(id, std::move(entity));
-    return (p.first)->second;   // (p.first == the iterator to the pair added) -> Entity
+    auto it = sInstance.addEntityList.emplace(id, std::move(entity));
+    if (!it.second) {
+        return nullptr;
+    } else {
+        return &(it.first->second);
+    }
 }
 
 /* Finds and returns Entity ptr; nullptr if not found */
-Entity* Init::findEntity(std::string id)
+Entity* Game::findEntity(std::string id)
 {
     auto it = sInstance.entityList.find(id);
     if (it == sInstance.entityList.end()) {
@@ -108,12 +149,20 @@ Entity* Init::findEntity(std::string id)
 }
 
 /* Add entity to list, to be destroyed later */
-void Init::destroyEntity(std::string id) {
+void Game::destroyEntity(std::string id)
+{
     sInstance.destroyQueue.push(id);
 }
 
+/* Entity list handler */
+void Game::entityListHandler()
+{
+    sInstance.entityList.merge(sInstance.addEntityList);
+    sInstance.addEntityList.clear();
+}
+
 /* Event handler */
-void Init::eventHandler()
+void Game::eventHandler()
 {
     for (auto &it : sInstance.events) {
         it.second = false;
@@ -135,7 +184,7 @@ void Init::eventHandler()
     }
 }
 
-void Init::updateHandler()
+void Game::updateHandler()
 {
     /* Call updates on each Entity */
     for (auto &it : sInstance.entityList) {
@@ -143,7 +192,7 @@ void Init::updateHandler()
     }
 }
 
-void Init::textureHandler()
+void Game::textureHandler()
 {
     SDL_SetRenderDrawColor(sInstance.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
     SDL_RenderClear(sInstance.renderer);
@@ -159,7 +208,7 @@ void Init::textureHandler()
     SDL_RenderPresent(sInstance.renderer);
 }
 
-void Init::destroyHandler()
+void Game::destroyHandler()
 {
     while (!sInstance.destroyQueue.empty()) {
         std::string id = sInstance.destroyQueue.front();

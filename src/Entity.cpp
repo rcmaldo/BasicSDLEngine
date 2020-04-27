@@ -2,15 +2,26 @@
 
 #include "..\headers\Init.h"
 
+/* Hit Test for Circular Entities */
+bool Entity::isHitCircle(Entity& e1, Entity& e2)
+{
+    double center1x = e1.x + e1.getGRect().w / 2;
+    double center1y = e1.y + e1.getGRect().h / 2;
+    double center2x = e2.x + e2.getGRect().w / 2;
+    double center2y = e2.y + e2.getGRect().h / 2;
+    double dist = sqrt(pow(center1x - center2x, 2.0) + pow(center1y - center2y, 2.0));
+    return dist <= e1.getRadius() + e2.getRadius();
+}
+
 /* Regular C-tor */
 Entity::Entity(std::string spritePath, int x, int y, int w, int h, double radius)
-    : x(gRect.x), y(gRect.y), delta(Init::getDelta())
+    : x(gRect.x), y(gRect.y), delta(Game::getDelta())
 {
     /* Load sprite or image */
-    texture = Init::loadTexture(spritePath);
+    texture = Game::loadTexture(spritePath);
 
-    int queryW;
-    int queryH;
+    int queryW = 0;
+    int queryH = 0;
 
     SDL_QueryTexture(texture, NULL, NULL, &queryW, &queryH);
 
@@ -44,13 +55,13 @@ Entity::Entity(std::string spritePath, int x, int y, int w, int h, double radius
 /* Copy C-tor (DOES NOT WORK WITH TRANSPARENCY) */
 /* TODO: shared ptr for textures */
 Entity::Entity(const Entity& other)
-    : x(gRect.x), y(gRect.y), delta(Init::getDelta()), radius(other.radius),
+    : x(gRect.x), y(gRect.y), delta(Game::getDelta()), radius(other.radius),
     gRect(other.gRect), lRect(other.lRect)
 {
     /* Get width and height, then create blank texture */
     int queryW;
     int queryH;
-    SDL_Renderer* gRenderer = Init::getRenderer();
+    SDL_Renderer* gRenderer = Game::getRenderer();
     SDL_QueryTexture(other.texture, NULL, NULL, &queryW, &queryH);
     this->texture = SDL_CreateTexture(gRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, queryW, queryH);
     
@@ -80,7 +91,7 @@ Entity& Entity::operator=(const Entity& other)
     /* Get width and height, then create blank texture */
     int queryW;
     int queryH;
-    SDL_Renderer* gRenderer = Init::getRenderer();
+    SDL_Renderer* gRenderer = Game::getRenderer();
     SDL_QueryTexture(other.texture, NULL, NULL, &queryW, &queryH);
     this->texture = SDL_CreateTexture(gRenderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, queryW, queryH);
     
@@ -102,7 +113,7 @@ Entity& Entity::operator=(const Entity& other)
 
 /* Move C-tor */
 Entity::Entity(Entity&& other)
-    : x(gRect.x), y(gRect.y), delta(Init::getDelta()), radius(other.radius),
+    : x(gRect.x), y(gRect.y), delta(Game::getDelta()), radius(other.radius),
     gRect(other.gRect), lRect(other.lRect)
 {
     this->texture = other.texture;

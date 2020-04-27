@@ -13,9 +13,56 @@ const int FRAMES_PER_SECOND = 60;
 
 std::vector<int> eventList = {SDL_QUIT, SDLK_a, SDLK_SPACE};
 
+int enemyCount = 0;
+int bossHP = 15;
+std::map<std::string, Entity*> enemies = {};
+Entity* addRegEnemy(int x = 0)
+{
+    std::string id = "12_enemy";
+    id += std::to_string(++enemyCount);
+    Entity* self = Game::addEntity(id, Entity("Enemy.png", x));
+    self->y = -self->getGRect().h;
+    Entity* player = Game::findEntity("15_player");
+
+    enemies.emplace(id,self);
+
+    self->update = [&, self, player]() {
+        self->y += 50 * Game::getDelta();
+        if (self != NULL && player != NULL && Entity::isHitCircle(*self, *player)) {
+            Game::destroyEntity("15_player");
+        }
+    };
+}
+
+
+Entity* addLargeEnemy(int x = 0)
+{
+    std::string id = "14_enemy";
+    id += std::to_string(++enemyCount);
+    Entity* self = Game::addEntity(id, Entity("Enemy.png", x));
+    self->y = -self->getGRect().h;
+    Entity* player = Game::findEntity("15_player");
+    
+    self->getGRect().w *= 3;
+    self->getGRect().h *= 3;
+
+    self->update = [&, self, player, id]() {
+        self->y += 20 * Game::getDelta();
+        if (Entity::isHitCircle(*self, *player)) {
+            Game::destroyEntity("15_player");
+        }
+        if (bossHP <= 0) {
+            Game::destroyEntity(id);
+        }
+    };
+
+    return self;
+}
+
 int WinMain(int argc, char *argv[])
 {
-    if (!Init::initializeSDL(SCREEN_WIDTH, SCREEN_HEIGHT, FRAMES_PER_SECOND, eventList)) {
+    Entity* large = NULL;
+    if (!Game::initializeSDL(SCREEN_WIDTH, SCREEN_HEIGHT, FRAMES_PER_SECOND, eventList)) {
         printf("Initialization failed:\n");
     } else {
 
@@ -25,41 +72,68 @@ int WinMain(int argc, char *argv[])
 
         int i = 0;
 
-        Entity& player = Init::addEntity("15_player", Entity("Player.png"));
+        Entity& background = *Game::addEntity("00_background", Entity("Waves.png"));
+        Game::tileEntityTexture(background);
+        background.update = [&]() {
+            background.y += 1;
+            if (background.y >= 0) {
+                background.y = -50;
+            }
+        };
+
+        Entity& player = *Game::addEntity("15_player", Entity("Player.png"));
+        player.y = SCREEN_HEIGHT - player.getGRect().h;
         player.update = [&]() {
             const Uint8* currKeystates = SDL_GetKeyboardState( NULL );
 
-            if (player.y < SCREEN_HEIGHT - player.getGRect().h) {
-                player.y += 25 * Init::getDelta();
-            }
-
             if (currKeystates[SDL_SCANCODE_UP]) {
-                player.y -= 50 * Init::getDelta();
+                player.y -= 50 * Game::getDelta();
+            }
+            
+            if (currKeystates[SDL_SCANCODE_DOWN]) {
+                player.y += 50 * Game::getDelta();
             }
 
             if (currKeystates[SDL_SCANCODE_LEFT]) {
-                player.x -= 25 * Init::getDelta();
+                player.x -= 150 * Game::getDelta();
             }
 
             if (currKeystates[SDL_SCANCODE_RIGHT]) {
-                player.x += 25 * Init::getDelta();
+                player.x += 150 * Game::getDelta();
             }
 
-            if (Init::getEvent(SDLK_SPACE)) {
-                i++;
+            if (Game::getEvent(SDLK_SPACE)) {
+                ++i;
                 std::string id = "11_pBullet";
                 id += std::to_string(i);
-                Entity& bullet = Init::addEntity(id, Entity("pBullet.png", player.x + player.getRadius() - 15, player.y));
-                bullet.update = [&, id]() {
-                    bullet.y -= 10 * Init::getDelta();
-                    if (bullet.y < SCREEN_HEIGHT - 10) {
-                        Init::destroyEntity(id);
+                Entity* self = Game::addEntity(id, Entity("pBullet.png", 0, player.y + player.getRadius()));
+                self->x = player.x + player.getRadius() - self->getRadius();
+                self->update = [&, id, self]() {
+                    self->y -= 250 * Game::getDelta();
+                    if (self->y < 0) {
+                        Game::destroyEntity(id);
+                    }
+
+                    for (auto it = enemies.begin(); it != enemies.end(); ++it) {
+                        if (self != NULL && it->second != NULL && Entity::isHitCircle(*self, *(it->second))) {
+                            Game::destroyEntity(it->first);
+                            Game::destroyEntity(id);
+                            enemies.erase(it);
+                            break;
+                        }
+                    }
+
+                    if (self != NULL && large != NULL && Entity::isHitCircle(*self, *(large))) {
+                        Game::destroyEntity(id);
+                        --bossHP;
                     }
                 };
             }
         };
 
-        Uint32 timeCap = 1000 / Init::getFPS();
+        Uint64 frameCount = 0;
+
+        Uint32 timeCap = 1000 / Game::getFPS();
         Uint32 startTime = 0;
         Uint32 endTime = 0;
         Uint32 actualDelta = 0;
@@ -73,15 +147,46 @@ int WinMain(int argc, char *argv[])
                 actualDelta = endTime - startTime; // how many ms for a frame
             }
 
-            Init::eventHandler();
-            Init::updateHandler();
-            Init::textureHandler();
-            // TODO Init::addHandler(); REQUIRED (add Entities spawned by other Entities during update())
-            Init::destroyHandler();
+            Game::entityListHandler();
+            Game::eventHandler();
+            Game::updateHandler();
+            Game::textureHandler();
+            Game::destroyHandler();
 
-            if (Init::getEvent(SDL_QUIT) || Init::getEvent(SDLK_a)) {
+            /* Manual game updates handled below */
+
+            if (Game::getEvent(SDL_QUIT)) {
                 quit = true;
             }
+
+            if (frameCount == 1500) {
+                large = addLargeEnemy();
+                large->x = (Game::getWidth() - large->getGRect().w) / 2;
+                large->getRadius() = large->getGRect().w / 2;
+            } else if (frameCount < 1100) {
+                if (frameCount % 500 == 0) {
+                    addRegEnemy();
+                    addRegEnemy(Game::getWidth() / 2 - 37);
+                    addRegEnemy(Game::getWidth() - 75);
+                }
+
+                if (frameCount % 500 == 250) {
+                    addRegEnemy();
+                    addRegEnemy((Game::getWidth() - 75) / 3 * 1);
+                    addRegEnemy((Game::getWidth() - 75) / 3 * 2);
+                    addRegEnemy(Game::getWidth() - 75);
+                }
+
+            }
+
+
+            if (bossHP <= 0) {
+                large = NULL;
+            }
+            
+            ++frameCount;
+            
+            /* Manual game updates handled above */
 
             // if less than 16ms, delay 
             if (actualDelta < timeCap) {
@@ -89,8 +194,8 @@ int WinMain(int argc, char *argv[])
             }
             
             // if delta is bigger than 16ms between frames, get the actual fps
-            int fps = Init::getFPS();
-            if (actualDelta > 0) {
+            int fps = Game::getFPS();
+            if (actualDelta > timeCap) {
                 fps = 1000 / actualDelta;
             }
             
@@ -99,12 +204,12 @@ int WinMain(int argc, char *argv[])
             
             startTime = endTime;
             endTime = SDL_GetTicks();
-            SDL_SetWindowTitle(Init::getWindow(), title.c_str());
+            SDL_SetWindowTitle(Game::getWindow(), title.c_str());
         }
     }
 
     /* Close all */
-    Init::close();
+    Game::close();
 
     return 0;
 }

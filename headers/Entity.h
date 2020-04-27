@@ -35,8 +35,15 @@ public:
     fRect& getGRect() { return gRect; }
     fRect& getLRect()  { return lRect; }
     double getDelta() { return delta; }
-    double getRadius() { return radius; }
+    double& getRadius() { return radius; }
     SDL_Texture* getTexture() { return texture; }
+
+    /* Setters */
+    void setTexture(SDL_Texture* texture) {
+        SDL_Texture* tmp = this->texture;
+        this->texture = texture;
+        SDL_DestroyTexture(tmp);
+    }
 
 protected:
     double &delta;   // := 1/fps, taken from static Init::delta
